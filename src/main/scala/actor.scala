@@ -53,4 +53,7 @@ class Actor {
 
   def guard(cond: Bool) (func: => Unit) {
   }
+
+  def toModule = {
+  }
 }
