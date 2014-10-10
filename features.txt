@@ -1,0 +1,15 @@
+Absolutely necessary features
+
+* Actors and actions
+* Input and Output Queues
+* Guards
+* Architectural State
+* when/elsewhen/otherwise
+* Support all Chisel datatypes
+
+Nice-to-have features
+
+* FSM syntax
+* Memories
+* Explicit Non-determinism (choose)
+* Pattern matching
