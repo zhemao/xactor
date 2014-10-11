@@ -37,3 +37,10 @@ class MyActor extends Actor {
     }
   }
 }
+
+object MyActorMain {
+  def main(args: Array[String]) {
+    val mod = (new MyActor).toMod
+    println(mod.io.toString)
+  }
+}
