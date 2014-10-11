@@ -14,15 +14,16 @@ class MyActor extends Actor {
     }
   }*/
 
-  action (a) {
+
+  action (a, c) {
     x => guard (x > UInt(10)) {
-      c <== x
+      x
     }
   }
 
-  action (a) {
+  action (a, c) {
     x => guard (x <= UInt(10)) {
-      c <== x
+      x + UInt(10)
     }
   }
 
@@ -31,7 +32,7 @@ class MyActor extends Actor {
       when (s.value < UInt(10)) {
         s := s.value + x
       } .otherwise {
-        c <== s.value
+        s := s.value + x - UInt(10)
       }
     }
   }

@@ -8,8 +8,6 @@ class InQueue[T <: Data](typ: T) extends Queue(typ) {
 }
 
 class OutQueue[T <: Data](typ: T) extends Queue(typ) {
-  def <== (x: T) {
-  }
 }
 
 object InQueue {
@@ -48,10 +46,14 @@ class State[T <: Data](val typ: T, val init: T) {
 }
 
 class Actor {
-  def action[T <: Data](queue: InQueue[T]) (func: T => Unit) {
+  def action[T <: Data, U <: Data](inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
   }
 
-  def guard(cond: Bool) (func: => Unit) {
+  def action[T <: Data](inqueue: InQueue[T]) (func: T => Unit) {
+  }
+
+  def guard[T](cond: Bool) (func: => T): T = {
+    func
   }
 
   def toModule = {
