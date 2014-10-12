@@ -2,6 +2,7 @@ package Xactor
 
 import Chisel._
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.HashMap
 
 abstract class Queue[T <: Data](val typ : T)
 
@@ -47,6 +48,10 @@ class State[T <: Data](val typ: T, val init: T) {
 }
 
 class Actor {
+  val ports = new ArrayBuffer[Data]
+  val reglist = new ArrayBuffer[Data]
+  var inspected = false
+
   def action[T <: Data, U <: Data](
       inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
   }
@@ -58,38 +63,54 @@ class Actor {
     func
   }
 
-  def toMod: Module = {
-    val methods = getClass.getDeclaredMethods.sortWith {
-      (x, y) => (x.getName < y.getName)
-    }
-    val members = new ArrayBuffer[Data]
-    for (m <- methods) {
-      val numparams = m.getParameterTypes.length
-      val rtype = m.getReturnType
-      val isQueue = classOf[Queue[_]].isAssignableFrom(rtype)
+  def inspectStateElements {
+    if (!inspected) {
+      val methods = getClass.getDeclaredMethods.sortWith {
+        (x, y) => (x.getName < y.getName)
+      }
+      for (m <- methods) {
+        val numparams = m.getParameterTypes.length
+        val rtype = m.getReturnType
 
-      if (numparams == 0 && isQueue) {
-        val name = m.getName
-        val obj = m.invoke(this)
-        obj match {
-          case queue: InQueue[_] => {
-            val port = new DecoupledIO(queue.typ.clone).flip
-            port.setName(name)
-            members += port 
+        if (numparams == 0) {
+          val name = m.getName
+          val obj = m.invoke(this)
+          obj match {
+            case queue: InQueue[_] => {
+              val port = new DecoupledIO(queue.typ.clone).flip
+              port.setName(name)
+              ports += port
+            }
+            case queue: OutQueue[_] => {
+              val port = new DecoupledIO(queue.typ.clone)
+              port.setName(name)
+              ports += port
+            }
+            case state: State[_] => {
+              val dstate = state.asInstanceOf[State[Data]]
+              val reg = Reg(dstate.typ, init = dstate.init)
+              reglist += reg
+            }
+            case any => ()
           }
-          case queue: OutQueue[_] => {
-            val port = new DecoupledIO(queue.typ.clone)
-            port.setName(name)
-            members += port 
-          }
-          case any => ()
         }
       }
+      inspected = true
     }
+  }
+
+  def toMod: Module = {
+    inspectStateElements
+    
     Module(new Module {
       val io = new Bundle
-      for (data <- members) {
+      for (data <- ports) {
         io += data
+      }
+
+      val stateregs = new HashMap[String,Data]
+      for (reg <- reglist) {
+        stateregs(reg.name) = reg
       }
     })
   }
