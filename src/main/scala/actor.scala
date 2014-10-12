@@ -4,62 +4,34 @@ import Chisel._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
-abstract class Queue[T <: Data](val typ : T)
-
-class InQueue[T <: Data](typ: T) extends Queue(typ) {
-}
-
-class OutQueue[T <: Data](typ: T) extends Queue(typ) {
-}
-
-object InQueue {
-  def apply[T <: Data](typ: T) = {
-    new InQueue(typ)
-  }
-}
-
-object OutQueue {
-  def apply[T <: Data](typ: T) = {
-    new OutQueue(typ)
-  }
-}
-
-object State {
-  def apply[T <: Data](typ: T = null, init: T = null) = {
-    val mType = if (typ != null) {
-      typ
-    } else if (init != null) {
-      init
-    } else {
-      throw new Exception("could not infer type of state")
-    }
-
-    new State(mType, init)
-  }
-}
-
-class State[T <: Data](val typ: T, val init: T) {
-  def := (x: T) {
-  }
-
-  def value = {
-    init
-  }
-}
+case class Action[T <: Data, U <: Data](
+    val func: T => U,
+    val inqueue: InQueue[T],
+    val outqueue: OutQueue[U])
 
 class Actor {
   val ports = new ArrayBuffer[Data]
   val reglist = new ArrayBuffer[Data]
   var inspected = false
+  val actions = new ArrayBuffer[Action[_ <: Data, _ <: Data]]
+  var lastguard: Bool
 
   def action[T <: Data, U <: Data](
       inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
+    actions += Action(func, inqueue, outqueue)
   }
 
   def action[T <: Data](inqueue: InQueue[T]) (func: T => Unit) {
+    val wrapfunc = (x: T) => {
+      func(x)
+      val typedNull: Data = null
+      typedNull
+    }
+    actions += Action(wrapfunc, inqueue, null)
   }
 
   def guard[T](cond: Bool) (func: => T): T = {
+    lastguard = cond
     func
   }
 
@@ -77,11 +49,13 @@ class Actor {
           val obj = m.invoke(this)
           obj match {
             case queue: InQueue[_] => {
+              queue.setName(name)
               val port = new DecoupledIO(queue.typ.clone).flip
               port.setName(name)
               ports += port
             }
             case queue: OutQueue[_] => {
+              queue.setName(name)
               val port = new DecoupledIO(queue.typ.clone)
               port.setName(name)
               ports += port
@@ -101,17 +75,33 @@ class Actor {
 
   def toMod: Module = {
     inspectStateElements
-    
-    Module(new Module {
+
+    val mod = Module(new Module {
       val io = new Bundle
+      val portMap = new HashMap[String,Data]
       for (data <- ports) {
         io += data
+        portMap(data.name) = data
       }
 
       val stateregs = new HashMap[String,Data]
       for (reg <- reglist) {
         stateregs(reg.name) = reg
       }
+
+      for (act <- actions) {
+        val ind = portMap(act.inqueue.name)
+          .asInstanceOf[DecoupledIO[Data]]
+        val outd = portMap(act.outqueue.name)
+          .asInstanceOf[DecoupledIO[Data]]
+        val res = act.func(ind.bits)
+        // lastguard is set by func
+        if (lastguard != null) {
+          // figure out what to do with lastguard here
+        }
+        lastguard = null
+      }
     })
+    mod
   }
 }
