@@ -16,23 +16,23 @@ class MyActor extends Actor {
 
 
   action (a, c) {
-    x => guard (x > UInt(10)) {
+    x => guard (x > UInt(10, 5)) {
       x
     }
   }
 
   action (a, c) {
-    x => guard (x <= UInt(10)) {
-      x + UInt(10)
+    x => guard (x <= UInt(10, 5)) {
+      x + UInt(10, 5)
     }
   }
 
   action (b) {
     x => guard (Bool(true)) {
-      when (s.value < UInt(10)) {
+      when (s.value < UInt(10, 7)) {
         s := s.value + x
       } .otherwise {
-        s := s.value + x - UInt(10)
+        s := s.value + x - UInt(10, 7)
       }
     }
   }
@@ -40,8 +40,6 @@ class MyActor extends Actor {
 
 object MyActorMain {
   def main(args: Array[String]) {
-    val mod = (new MyActor).toMod
-    println(mod.io.toString)
-    chiselMain(args, () => mod)
+    chiselMain(args, () => (new MyActor).toMod)
   }
 }
