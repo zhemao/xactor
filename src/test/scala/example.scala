@@ -1,6 +1,7 @@
 package Xactor
 
 import Chisel._
+import scala.collection.mutable.HashMap
 
 class MyActor extends Actor {
   val a = InQueue(UInt(width = 5))
@@ -16,30 +17,41 @@ class MyActor extends Actor {
 
 
   action (a, c) {
-    x => guard (x > UInt(10, 5)) {
+    x => guard (x > UInt(10)) {
       x
     }
   }
 
   action (a, c) {
-    x => guard (x <= UInt(10, 5)) {
-      x + UInt(10, 5)
+    x => guard (x <= UInt(10)) {
+      x + UInt(10)
     }
   }
 
   action (b) {
     x => guard (Bool(true)) {
-      when (s.value < UInt(10, 7)) {
+      when (s.value < UInt(10)) {
         s := s.value + x
       } .otherwise {
-        s := s.value + x - UInt(10, 7)
+        s := s.value + x - UInt(10)
       }
     }
   }
 }
 
+class MyActorTest(c: ActorModule) extends Tester(c) {
+  poke(c.portMap("a").bits.asInstanceOf[Bits], 0)
+  poke(c.portMap("a").valid, 1)
+  poke(c.portMap("c").ready, 1)
+  step(1)
+  expect(c.portMap("c").valid, 1)
+  expect(c.portMap("c").bits.asInstanceOf[Bits], 10)
+}
+
 object MyActorMain {
   def main(args: Array[String]) {
-    chiselMain(args, () => (new MyActor).toMod)
+    chiselMainTest(args, () => (new MyActor).toMod) {
+      c => new MyActorTest(c)
+    }
   }
 }

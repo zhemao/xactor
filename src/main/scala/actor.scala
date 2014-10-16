@@ -9,10 +9,15 @@ case class Action[T <: Data, U <: Data](
     val inqueue: InQueue[T],
     val outqueue: OutQueue[U])
 
+abstract class ActorModule extends Module {
+  val io = new Bundle
+  val portMap = new HashMap[String,DecoupledIO[Data]]
+}
+
 class Actor {
   val inputPorts = new ArrayBuffer[(String,Data)]
   val outputPorts = new ArrayBuffer[(String,Data)]
-  val reglist = new ArrayBuffer[Data]
+  val reglist = new ArrayBuffer[(String,Data,Data)]
   var inspected = false
   val actions = new ArrayBuffer[Action[_ <: Data, _ <: Data]]
   var lastguard = Bool(true)
@@ -59,8 +64,7 @@ class Actor {
             }
             case state: State[_] => {
               val dstate = state.asInstanceOf[State[Data]]
-              val reg = Reg(dstate.typ, init = dstate.init)
-              reglist += reg
+              reglist += Tuple3(name, dstate.typ, dstate.init)
             }
             case any => ()
           }
@@ -70,30 +74,34 @@ class Actor {
     }
   }
 
-  def toMod: Module = {
+  def toMod: ActorModule = {
     inspectStateElements
-    
+
     val guardMap = new HashMap[String,ArrayBuffer[(Bool,Bits)]]
-    val mod = Module(new Module {
-      val io = new Bundle
-      val portMap = new HashMap[String,Data]
+    val mod = Module(new ActorModule {
       for ((name, typ) <- inputPorts) {
         val port = new DecoupledIO(typ.clone).flip
         port.setName(name)
+        port.bits.setName("io_" + name + "_bits")
+        port.valid.setName("io_" + name + "_valid")
+        port.ready.setName("io_" + name + "_ready")
         io += port
         portMap(name) = port
       }
       for ((name, typ) <- outputPorts) {
         val port = new DecoupledIO(typ.clone)
         port.setName(name)
+        port.bits.setName("io_" + name + "_bits")
+        port.valid.setName("io_" + name + "_valid")
+        port.ready.setName("io_" + name + "_ready")
         io += port
         portMap(name) = port
         guardMap(name) = new ArrayBuffer[(Bool,Bits)]
       }
 
       val stateregs = new HashMap[String,Data]
-      for (reg <- reglist) {
-        stateregs(reg.name) = reg
+      for ((name, typ, init) <- reglist) {
+        stateregs(name) = Reg(typ, init=init)
       }
 
       for (act <- actions) {
@@ -103,20 +111,20 @@ class Actor {
             .asInstanceOf[DecoupledIO[Data]]
           val outd = portMap(dact.outqueue.name)
             .asInstanceOf[DecoupledIO[Data]]
-            
+
           val res = dact.func(ind.bits).toBits
           guardMap(dact.outqueue.name) += Tuple2(
-            (lastguard && ind.valid && outd.ready), res)   
+            (lastguard && ind.valid && outd.ready), res)
           lastguard = Bool(true)
         }
       }
-      
+
       for ((name, typ) <- outputPorts) {
         val outd = portMap(name)
           .asInstanceOf[DecoupledIO[Data]]
-        val outMux = PriorityMux(guardMap(name)) 
+        val outMux = PriorityMux(guardMap(name))
         outd.bits := outMux
-        outd.valid := guardMap(name).unzip._1.reduce(_ || _) 
+        outd.valid := guardMap(name).unzip._1.reduce(_ || _)
        }
     })
     mod
