@@ -94,6 +94,7 @@ class Actor {
         port.ready.setName("io_" + name + "_ready")
         io += port
         portMap(name) = port
+        guardMap(name) = new ArrayBuffer[(Bool,Bits)]
       }
       for ((name, typ) <- outputPorts) {
         val port = new DecoupledIO(typ.clone)
@@ -131,17 +132,23 @@ class Actor {
           val (name, data) = lastupdate
           guardMap(name) += Tuple2(fullguard, data.toBits)
         }
+        guardMap(dact.inqueue.name) += Tuple2(fullguard, null)
         lastguard = Bool(true)
         lastupdate = ("", null)
       }
 
-      for ((name, typ) <- outputPorts) {
-        val outd = portMap(name)
-          .asInstanceOf[DecoupledIO[Data]]
+      for ((name, _) <- outputPorts) {
+        val outd = portMap(name).asInstanceOf[DecoupledIO[Data]]
         val outMux = PriorityMux(guardMap(name))
         val outValid = guardMap(name).unzip._1.reduce(_ || _)
         outd.bits := Reg(next = outMux)
         outd.valid := Reg(next = outValid)
+      }
+
+      for ((name, _) <- inputPorts) {
+        val ind = portMap(name).asInstanceOf[DecoupledIO[Data]]
+        val inReady = guardMap(name).unzip._1.reduce(_ || _)
+        ind.ready := Reg(next = inReady)
       }
 
       for ((name, reg) <- stateregs) {

@@ -46,6 +46,7 @@ class MyActorTest(c: ActorModule) extends Tester(c) {
   poke(c.portMap("a").valid, 1)
   poke(c.portMap("c").ready, 1)
   step(1)
+  expect(c.portMap("a").ready, 1)
   expect(c.portMap("c").valid, 1)
   expect(c.portMap("c").bits.asInstanceOf[Bits], 10)
   poke(c.portMap("a").valid, 0)
@@ -54,13 +55,22 @@ class MyActorTest(c: ActorModule) extends Tester(c) {
   poke(c.portMap("b").bits.asInstanceOf[Bits], 20)
   poke(c.portMap("b").valid, 1)
   step(1)
+  expect(c.portMap("b").ready, 1)
   expect(c.portMap("c").valid, 0)
 
   poke(c.portMap("b").bits.asInstanceOf[Bits], 5)
   poke(c.portMap("c").ready, 1)
   step(1)
+  expect(c.portMap("b").ready, 1)
   expect(c.portMap("c").valid, 1)
   expect(c.portMap("c").bits.asInstanceOf[Bits], 20)
+
+  poke(c.portMap("c").ready, 0)
+  poke(c.portMap("b").valid, 0)
+  step(1)
+  expect(c.portMap("a").ready, 0)
+  expect(c.portMap("b").ready, 0)
+  expect(c.portMap("c").valid, 0)
 }
 
 object MyActorMain {
