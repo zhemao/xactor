@@ -17,10 +17,15 @@ abstract class ActorModule extends Module {
 class Actor {
   val inputPorts = new ArrayBuffer[(String,Data)]
   val outputPorts = new ArrayBuffer[(String,Data)]
-  val reglist = new ArrayBuffer[(String,Data,Data)]
   var inspected = false
   val actions = new ArrayBuffer[Action[_ <: Data, _ <: Data]]
   var lastguard = Bool(true)
+  var lastupdate: (String,Data) = ("", null)
+  val states = new ArrayBuffer[State[Data]]
+
+  def setLastUpdate(name: String, data: Data) {
+    lastupdate = Tuple2(name, data)
+  }
 
   def action[T <: Data, U <: Data](
       inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
@@ -64,7 +69,9 @@ class Actor {
             }
             case state: State[_] => {
               val dstate = state.asInstanceOf[State[Data]]
-              reglist += Tuple3(name, dstate.typ, dstate.init)
+              dstate.setActor(this)
+              dstate.setName(name)
+              states += dstate
             }
             case any => ()
           }
@@ -99,33 +106,51 @@ class Actor {
         guardMap(name) = new ArrayBuffer[(Bool,Bits)]
       }
 
-      val stateregs = new HashMap[String,Data]
-      for ((name, typ, init) <- reglist) {
-        stateregs(name) = Reg(typ, init=init)
+      val stateregs = new ArrayBuffer[(String,Data)]
+      for (state <- states) {
+        val reg = Reg(state.typ, init=state.init)
+        state.setReg(reg)
+        stateregs += Tuple2(state.name, reg)
+        guardMap(state.name) = new ArrayBuffer[(Bool,Bits)]
       }
 
       for (act <- actions) {
         val dact = act.asInstanceOf[Action[Data,Data]]
+        val ind = portMap(dact.inqueue.name)
+          .asInstanceOf[DecoupledIO[Data]]
+        val res = dact.func(ind.bits)
+        var fullguard = lastguard && ind.valid
+
         if (dact.outqueue != null) {
-          val ind = portMap(dact.inqueue.name)
-            .asInstanceOf[DecoupledIO[Data]]
           val outd = portMap(dact.outqueue.name)
             .asInstanceOf[DecoupledIO[Data]]
-
-          val res = dact.func(ind.bits).toBits
-          guardMap(dact.outqueue.name) += Tuple2(
-            (lastguard && ind.valid && outd.ready), res)
-          lastguard = Bool(true)
+          fullguard = fullguard && outd.ready
+          guardMap(dact.outqueue.name) += Tuple2(fullguard, res.toBits)
         }
+        if (lastupdate._2 != null) {
+          val (name, data) = lastupdate
+          guardMap(name) += Tuple2(fullguard, data.toBits)
+        }
+        lastguard = Bool(true)
+        lastupdate = ("", null)
       }
 
       for ((name, typ) <- outputPorts) {
         val outd = portMap(name)
           .asInstanceOf[DecoupledIO[Data]]
         val outMux = PriorityMux(guardMap(name))
-        outd.bits := outMux
-        outd.valid := guardMap(name).unzip._1.reduce(_ || _)
-       }
+        val outValid = guardMap(name).unzip._1.reduce(_ || _)
+        outd.bits := Reg(next = outMux)
+        outd.valid := Reg(next = outValid)
+      }
+
+      for ((name, reg) <- stateregs) {
+        val regMux = PriorityMux(guardMap(name))
+        val regEn = guardMap(name).unzip._1.reduce(_ || _)
+        when (regEn) {
+          reg := regMux
+        }
+      }
     })
     mod
   }

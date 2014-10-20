@@ -29,12 +29,14 @@ class MyActor extends Actor {
   }
 
   action (b) {
-    x => guard (Bool(true)) {
-      when (s.value < UInt(10)) {
-        s := s.value + x
-      } .otherwise {
-        s := s.value + x - UInt(10)
-      }
+    x => guard (s.value < UInt(20)) {
+      s := s.value + x
+    }
+  }
+  action (b, c) {
+    x => guard (s.value >= UInt(20)) {
+      s := x
+      s.value
     }
   }
 }
@@ -46,6 +48,19 @@ class MyActorTest(c: ActorModule) extends Tester(c) {
   step(1)
   expect(c.portMap("c").valid, 1)
   expect(c.portMap("c").bits.asInstanceOf[Bits], 10)
+  poke(c.portMap("a").valid, 0)
+  poke(c.portMap("c").ready, 0)
+
+  poke(c.portMap("b").bits.asInstanceOf[Bits], 20)
+  poke(c.portMap("b").valid, 1)
+  step(1)
+  expect(c.portMap("c").valid, 0)
+
+  poke(c.portMap("b").bits.asInstanceOf[Bits], 5)
+  poke(c.portMap("c").ready, 1)
+  step(1)
+  expect(c.portMap("c").valid, 1)
+  expect(c.portMap("c").bits.asInstanceOf[Bits], 20)
 }
 
 object MyActorMain {
