@@ -41,41 +41,66 @@ class MyActor extends Actor {
   }
 }
 
-class MyActorTest(c: ActorModule) extends Tester(c) {
-  poke(c.portMap("a").bits.asInstanceOf[Bits], 0)
-  poke(c.portMap("a").valid, 1)
-  poke(c.portMap("c").ready, 1)
-  step(1)
-  expect(c.portMap("a").ready, 1)
-  expect(c.portMap("c").valid, 1)
-  expect(c.portMap("c").bits.asInstanceOf[Bits], 10)
-  poke(c.portMap("a").valid, 0)
-  poke(c.portMap("c").ready, 0)
+class MyActorSetup extends Module {
+  val io = new Bundle {
+    val a = Decoupled(UInt(width = 5)).flip
+    val b = Decoupled(UInt(width = 5)).flip
+    val c = Decoupled(UInt(width = 5))
+  }
 
-  poke(c.portMap("b").bits.asInstanceOf[Bits], 20)
-  poke(c.portMap("b").valid, 1)
-  step(1)
-  expect(c.portMap("b").ready, 1)
-  expect(c.portMap("c").valid, 0)
+  val actor = (new MyActor).toMod
 
-  poke(c.portMap("b").bits.asInstanceOf[Bits], 5)
-  poke(c.portMap("c").ready, 1)
-  step(1)
-  expect(c.portMap("b").ready, 1)
-  expect(c.portMap("c").valid, 1)
-  expect(c.portMap("c").bits.asInstanceOf[Bits], 20)
+  val aqueue = Queue(io.a, 1)
+  aqueue <> actor.portMap("a").asInstanceOf[DecoupledIO[UInt]]
 
-  poke(c.portMap("c").ready, 0)
-  poke(c.portMap("b").valid, 0)
+  val bqueue = Queue(io.b, 1)
+  bqueue <> actor.portMap("b").asInstanceOf[DecoupledIO[UInt]]
+
+  val cqueue = Queue(actor.portMap("c").asInstanceOf[DecoupledIO[UInt]], 1)
+  cqueue <> io.c
+}
+
+class MyActorTest(c: MyActorSetup) extends Tester(c) {
+  poke(c.io.a.bits, 1)
+  poke(c.io.a.valid, 1)
+  expect(c.io.a.ready, 1)
   step(1)
-  expect(c.portMap("a").ready, 0)
-  expect(c.portMap("b").ready, 0)
-  expect(c.portMap("c").valid, 0)
+  poke(c.io.a.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 11)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
+  expect(c.io.b.ready, 1)
+  poke(c.io.b.bits, 20)
+  poke(c.io.b.valid, 1)
+  step(1)
+  poke(c.io.b.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 0)
+
+  expect(c.io.b.ready, 1)
+  poke(c.io.b.bits, 5)
+  poke(c.io.b.valid, 1)
+  step(1)
+  poke(c.io.b.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 20)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
+  poke(c.io.b.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 0)
 }
 
 object MyActorMain {
   def main(args: Array[String]) {
-    chiselMainTest(args, () => (new MyActor).toMod) {
+    chiselMainTest(args, () => Module(new MyActorSetup)) {
       c => new MyActorTest(c)
     }
   }

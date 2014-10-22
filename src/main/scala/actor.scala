@@ -139,16 +139,13 @@ class Actor {
 
       for ((name, _) <- outputPorts) {
         val outd = portMap(name).asInstanceOf[DecoupledIO[Data]]
-        val outMux = PriorityMux(guardMap(name))
-        val outValid = guardMap(name).unzip._1.reduce(_ || _)
-        outd.bits := Reg(next = outMux)
-        outd.valid := Reg(next = outValid)
+        outd.bits := PriorityMux(guardMap(name))
+        outd.valid := guardMap(name).unzip._1.reduce(_ || _)
       }
 
       for ((name, _) <- inputPorts) {
         val ind = portMap(name).asInstanceOf[DecoupledIO[Data]]
-        val inReady = guardMap(name).unzip._1.reduce(_ || _)
-        ind.ready := Reg(next = inReady)
+        ind.ready := guardMap(name).unzip._1.reduce(_ || _)
       }
 
       for ((name, reg) <- stateregs) {
