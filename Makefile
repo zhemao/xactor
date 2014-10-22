@@ -11,7 +11,7 @@ core_gen_dir    := target
 
 .PHONY: test clean
 
-TEST_FLAGS = --genHarness --compile --backend c --test
+TEST_FLAGS = --genHarness --compile --backend c --test --vcd
 
 test-actor: $(example_src) $(core_gen_dir)/timestamp
 	sbt "test:run-main Xactor.MyActorMain $(TEST_FLAGS) --targetDir $(example_gen_dir)"
