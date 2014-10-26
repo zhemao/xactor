@@ -5,9 +5,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 case class Action[T <: Data, U <: Data](
-    val func: T => U,
-    val inqueue: InQueue[T],
-    val outqueue: OutQueue[U])
+  val func: T => U,
+  val inqueue: InQueue[T],
+  val outqueue: OutQueue[U])
 
 abstract class ActorModule extends Module {
   val io = new Bundle
@@ -28,7 +28,7 @@ class Actor {
   }
 
   def action[T <: Data, U <: Data](
-      inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
+    inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
     actions += Action(func, inqueue, outqueue)
   }
 
@@ -115,27 +115,42 @@ class Actor {
         guardMap(state.name) = new ArrayBuffer[(Bool,Bits)]
       }
 
-      for (act <- actions) {
+      val curSchedule = UInt(width = actions.length)
+      val schedulerAddr = Vec.fill(actions.length){Bool()}
+
+      for ((act,i) <- actions.view.zipWithIndex) {
+        //Invoke each action to generate requiste logic
         val dact = act.asInstanceOf[Action[Data,Data]]
         val ind = portMap(dact.inqueue.name)
           .asInstanceOf[DecoupledIO[Data]]
         val res = dact.func(ind.bits)
         var fullguard = lastguard && ind.valid
-
-        if (dact.outqueue != null) {
+        if(dact.outqueue != null) {
           val outd = portMap(dact.outqueue.name)
             .asInstanceOf[DecoupledIO[Data]]
           fullguard = fullguard && outd.ready
-          guardMap(dact.outqueue.name) += Tuple2(fullguard, res.toBits)
+        }
+        //Create the lookup address with evaluated guards
+        schedulerAddr(i) := fullguard
+
+        //Zip data, with scheduled predicate to drive priority muxes
+        if (dact.outqueue != null) {
+          guardMap(dact.outqueue.name) += Tuple2(curSchedule(i), res.toBits)
         }
         if (lastupdate._2 != null) {
           val (name, data) = lastupdate
-          guardMap(name) += Tuple2(fullguard, data.toBits)
+          guardMap(name) += Tuple2(curSchedule(i), data.toBits)
         }
-        guardMap(dact.inqueue.name) += Tuple2(fullguard, null)
+        guardMap(dact.inqueue.name) += Tuple2(curSchedule(i), null)
         lastguard = Bool(true)
         lastupdate = ("", null)
       }
+      val schedule = new ArrayBuffer[UInt]
+      for (i <- 0 until (1 << actions.length)){
+        schedule += UInt(i, width = actions.length)
+      }
+      val scheduleROM = Vec(schedule)
+      curSchedule := scheduleROM(schedulerAddr.toBits)
 
       for ((name, _) <- outputPorts) {
         val outd = portMap(name).asInstanceOf[DecoupledIO[Data]]
