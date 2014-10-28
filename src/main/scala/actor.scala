@@ -22,7 +22,10 @@ class Actor {
   var lastguard = Bool(true)
   var lastupdate: (String,Data) = ("", null)
   val states = new ArrayBuffer[State[Data]]
-
+  private val inputDepList = new HashMap[String,ArrayBuffer[Int]]
+  private val outputDepList = new HashMap[String,ArrayBuffer[Int]]
+  private val stateDepList = new HashMap[String,ArrayBuffer[Int]]
+  private val scheduler = new Scheduler
   def setLastUpdate(name: String, data: Data) {
     lastupdate = Tuple2(name, data)
   }
@@ -81,6 +84,13 @@ class Actor {
     }
   }
 
+  def generateSchedule {
+    scheduler.registerDepList(inputDepList, "input")
+    scheduler.registerDepList(outputDepList, "output")
+    scheduler.registerDepList(stateDepList, "state")
+    scheduler.generateDot
+  }
+
   def toMod: ActorModule = {
     inspectStateElements
 
@@ -95,6 +105,7 @@ class Actor {
         io += port
         portMap(name) = port
         guardMap(name) = new ArrayBuffer[(Bool,Bits)]
+        inputDepList(name) = new ArrayBuffer[Int]
       }
       for ((name, typ) <- outputPorts) {
         val port = new DecoupledIO(typ.clone)
@@ -105,6 +116,7 @@ class Actor {
         io += port
         portMap(name) = port
         guardMap(name) = new ArrayBuffer[(Bool,Bits)]
+        outputDepList(name) = new ArrayBuffer[Int]
       }
 
       val stateregs = new ArrayBuffer[(String,Data)]
@@ -113,6 +125,7 @@ class Actor {
         state.setReg(reg)
         stateregs += Tuple2(state.name, reg)
         guardMap(state.name) = new ArrayBuffer[(Bool,Bits)]
+        stateDepList(state.name) = new ArrayBuffer[Int]
       }
 
       val curSchedule = UInt(width = actions.length)
@@ -123,12 +136,15 @@ class Actor {
         val dact = act.asInstanceOf[Action[Data,Data]]
         val ind = portMap(dact.inqueue.name)
           .asInstanceOf[DecoupledIO[Data]]
+        inputDepList(dact.inqueue.name) += i
         val res = dact.func(ind.bits)
         var fullguard = lastguard && ind.valid
         if(dact.outqueue != null) {
           val outd = portMap(dact.outqueue.name)
             .asInstanceOf[DecoupledIO[Data]]
           fullguard = fullguard && outd.ready
+          //Register current actors output dependency 
+          outputDepList(dact.outqueue.name) += i
         }
         //Create the lookup address with evaluated guards
         schedulerAddr(i) := fullguard
@@ -139,12 +155,16 @@ class Actor {
         }
         if (lastupdate._2 != null) {
           val (name, data) = lastupdate
+          stateDepList(name) += i
           guardMap(name) += Tuple2(curSchedule(i), data.toBits)
         }
         guardMap(dact.inqueue.name) += Tuple2(curSchedule(i), null)
         lastguard = Bool(true)
         lastupdate = ("", null)
       }
+
+      generateSchedule
+
       val schedule = new ArrayBuffer[UInt]
       for (i <- 0 until (1 << actions.length)){
         schedule += UInt(i, width = actions.length)

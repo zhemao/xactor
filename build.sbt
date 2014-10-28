@@ -12,3 +12,4 @@ libraryDependencies += "edu.berkeley.cs" %% "chisel" % "2.3-SNAPSHOT"
 
 libraryDependencies += "com.assembla.scala-incubator" %% "graph-core" % "1.9.0"
 
+libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.3"
