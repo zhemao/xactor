@@ -84,11 +84,12 @@ class Actor {
     }
   }
 
-  def generateSchedule {
+  def generateSchedule : ArrayBuffer[UInt] = {
+    scheduler.initialize(actions.length)
     scheduler.registerDepList(inputDepList, "input")
     scheduler.registerDepList(outputDepList, "output")
     scheduler.registerDepList(stateDepList, "state")
-    scheduler.generateDot
+    scheduler.generateSchedule()
   }
 
   def toMod: ActorModule = {
@@ -163,13 +164,7 @@ class Actor {
         lastupdate = ("", null)
       }
 
-      generateSchedule
-
-      val schedule = new ArrayBuffer[UInt]
-      for (i <- 0 until (1 << actions.length)){
-        schedule += UInt(i, width = actions.length)
-      }
-      val scheduleROM = Vec(schedule)
+      val scheduleROM = Vec(generateSchedule)
       curSchedule := scheduleROM(schedulerAddr.toBits)
 
       for ((name, _) <- outputPorts) {

@@ -24,4 +24,4 @@ $(core_gen_dir)/timestamp: $(core_src)
 	date > "$(core_gen_dir)/timestamp"
 
 clean:
-	rm -rf build/* target/*
+	rm -rf build/* target/* *.dot *.ps
