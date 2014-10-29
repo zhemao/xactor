@@ -60,6 +60,20 @@ class Actor {
     actions += Action(wrapfunc, inqueues, null)
   }
 
+  def action[T <: Data](outqueue: OutQueue[T]) (func: => T) {
+    val wrapfunc = (x: List[_]) => func
+    actions += Action(wrapfunc, Nil, outqueue)
+  }
+
+  def action() (func: => Unit) {
+    val wrapfunc = (x: List[_]) => {
+      func
+      val typedNull: Data = null
+      typedNull
+    }
+    actions += Action(wrapfunc, Nil, null)
+  }
+
   def guard[T](cond: Bool) (func: => T): T = {
     lastguard = cond
     func
@@ -139,6 +153,7 @@ class Actor {
       val stateregs = new ArrayBuffer[(String,Data)]
       for (state <- states) {
         val reg = Reg(state.typ, init=state.init)
+        reg.setName(state.name)
         state.setReg(reg)
         stateregs += Tuple2(state.name, reg)
         guardMap(state.name) = new ArrayBuffer[(Bool,Bits)]
