@@ -4,7 +4,7 @@ version := "0.1-SNAPSHOT"
 
 name := "xactor"
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.10.4"
 
 addSbtPlugin("com.github.scct" % "sbt-scct" % "0.2")
 

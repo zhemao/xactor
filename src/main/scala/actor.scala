@@ -5,8 +5,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 case class Action[T <: Data, U <: Data](
-  val func: T => U,
-  val inqueue: InQueue[T],
+  val func: List[T] => U,
+  val inqueues: List[InQueue[T]],
   val outqueue: OutQueue[U])
 
 abstract class ActorModule extends Module {
@@ -32,16 +32,31 @@ class Actor {
 
   def action[T <: Data, U <: Data](
     inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
-    actions += Action(func, inqueue, outqueue)
+    val wrapfunc = (x: List[T]) => func(x.head)
+    actions += Action(wrapfunc, List(inqueue), outqueue)
   }
 
   def action[T <: Data](inqueue: InQueue[T]) (func: T => Unit) {
-    val wrapfunc = (x: T) => {
+    val wrapfunc = (x: List[T]) => {
+      func(x.head)
+      val typedNull: Data = null
+      typedNull
+    }
+    actions += Action(wrapfunc, List(inqueue), null)
+  }
+
+  def action[T <: Data, U <: Data](
+    inqueues: List[InQueue[T]], outqueue: OutQueue[U]) (func: List[T] => U) {
+    actions += Action(func, inqueues, outqueue)
+  }
+
+  def action[T <: Data](inqueues: List[InQueue[T]]) (func: List[T] => Unit) {
+    val wrapfunc = (x: List[T]) => {
       func(x)
       val typedNull: Data = null
       typedNull
     }
-    actions += Action(wrapfunc, inqueue, null)
+    actions += Action(wrapfunc, inqueues, null)
   }
 
   def guard[T](cond: Bool) (func: => T): T = {
@@ -135,11 +150,25 @@ class Actor {
       for ((act,i) <- actions.view.zipWithIndex) {
         //Invoke each action to generate requiste logic
         val dact = act.asInstanceOf[Action[Data,Data]]
-        val ind = portMap(dact.inqueue.name)
-          .asInstanceOf[DecoupledIO[Data]]
-        inputDepList(dact.inqueue.name) += i
-        val res = dact.func(ind.bits)
-        var fullguard = lastguard && ind.valid
+
+        for (inq <- dact.inqueues) {
+          val ind = portMap(inq.name)
+            .asInstanceOf[DecoupledIO[Data]]
+          inputDepList(inq.name) += i
+        }
+        val inputs = dact.inqueues.map {
+          inq => portMap(inq.name)
+            .asInstanceOf[DecoupledIO[Data]].bits
+        }
+        val res = dact.func(inputs)
+
+        var fullguard = lastguard
+        for (inq <- dact.inqueues) {
+          val ind = portMap(inq.name)
+            .asInstanceOf[DecoupledIO[Data]]
+          fullguard = fullguard && ind.valid
+        }
+
         if(dact.outqueue != null) {
           val outd = portMap(dact.outqueue.name)
             .asInstanceOf[DecoupledIO[Data]]
@@ -159,7 +188,9 @@ class Actor {
           stateDepList(name) += i
           guardMap(name) += Tuple2(curSchedule(i), data.toBits)
         }
-        guardMap(dact.inqueue.name) += Tuple2(curSchedule(i), null)
+        for (inq <- dact.inqueues) {
+          guardMap(inq.name) += Tuple2(curSchedule(i), null)
+        }
         lastguard = Bool(true)
         lastupdate = ("", null)
       }

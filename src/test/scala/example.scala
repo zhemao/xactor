@@ -7,14 +7,10 @@ class MyActor extends Actor {
   val a = InQueue(UInt(width = 5))
   val b = InQueue(UInt(width = 5))
   val c = OutQueue(UInt(width = 5))
+  val d = InQueue(UInt(width = 5))
+  val e = InQueue(UInt(width = 5))
 
   val s = State(init = UInt(0, 7))
-
-  /*action(a, b) {
-    (x, y) => guard (Bool(true)) {
-    }
-  }*/
-
 
   action (a, c) {
     x => guard (x > UInt(10)) {
@@ -39,6 +35,12 @@ class MyActor extends Actor {
       s.value
     }
   }
+
+  action(List(d, e), c) {
+    case (x :: y :: Nil) => guard (x < y) {
+      x
+    }
+  }
 }
 
 class MyActorSetup extends Module {
@@ -46,6 +48,8 @@ class MyActorSetup extends Module {
     val a = Decoupled(UInt(width = 5)).flip
     val b = Decoupled(UInt(width = 5)).flip
     val c = Decoupled(UInt(width = 5))
+    val d = Decoupled(UInt(width = 5)).flip
+    val e = Decoupled(UInt(width = 5)).flip
   }
 
   val actor = (new MyActor).toMod
@@ -58,6 +62,12 @@ class MyActorSetup extends Module {
 
   val cqueue = Queue(actor.portMap("c").asInstanceOf[DecoupledIO[UInt]], 1)
   cqueue <> io.c
+
+  val dqueue = Queue(io.d, 1)
+  dqueue <> actor.portMap("d").asInstanceOf[DecoupledIO[UInt]]
+
+  val equeue = Queue(io.e, 1)
+  equeue <> actor.portMap("e").asInstanceOf[DecoupledIO[UInt]]
 }
 
 class MyActorTest(c: MyActorSetup) extends Tester(c) {
@@ -96,6 +106,17 @@ class MyActorTest(c: MyActorSetup) extends Tester(c) {
   poke(c.io.b.valid, 0)
   step(1)
   expect(c.io.c.valid, 0)
+
+  poke(c.io.d.valid, 1)
+  poke(c.io.e.valid, 1)
+  poke(c.io.d.bits, 4)
+  poke(c.io.e.bits, 5)
+  step(1)
+  poke(c.io.d.valid, 0)
+  poke(c.io.e.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 4)
 }
 
 object MyActorMain {
