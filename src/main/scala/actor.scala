@@ -20,14 +20,15 @@ class Actor {
   var inspected = false
   val actions = new ArrayBuffer[Action[_ <: Data, _ <: Data]]
   var lastguard = Bool(true)
-  var lastupdate: (String,Data) = ("", null)
+  var lastupdates = new ArrayBuffer[(String,Data)]
   val states = new ArrayBuffer[State[Data]]
   private val inputDepList = new HashMap[String,ArrayBuffer[Int]]
   private val outputDepList = new HashMap[String,ArrayBuffer[Int]]
   private val stateDepList = new HashMap[String,ArrayBuffer[Int]]
   private val scheduler = new Scheduler
-  def setLastUpdate(name: String, data: Data) {
-    lastupdate = Tuple2(name, data)
+
+  def addUpdate(name: String, data: Data) {
+    lastupdates += Tuple2(name, data)
   }
 
   def action[T <: Data, U <: Data](
@@ -183,8 +184,7 @@ class Actor {
         if (dact.outqueue != null) {
           guardMap(dact.outqueue.name) += Tuple2(curSchedule(i), res.toBits)
         }
-        if (lastupdate._2 != null) {
-          val (name, data) = lastupdate
+        for ((name, data) <- lastupdates) {
           stateDepList(name) += i
           guardMap(name) += Tuple2(curSchedule(i), data.toBits)
         }
@@ -192,7 +192,7 @@ class Actor {
           guardMap(inq.name) += Tuple2(curSchedule(i), null)
         }
         lastguard = Bool(true)
-        lastupdate = ("", null)
+        lastupdates = new ArrayBuffer[(String, Data)]
       }
 
       val scheduleROM = Vec(generateSchedule)

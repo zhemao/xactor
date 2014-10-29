@@ -24,7 +24,7 @@ class State[T <: Data](val typ: T, val init: T) {
   def := (x: T) {
     if (actor == null)
       throw new Exception("Actor has not yet been set")
-    actor.setLastUpdate(name, x)
+    actor.addUpdate(name, x)
   }
 
   def value = reg.asInstanceOf[T]
