@@ -9,6 +9,7 @@ class MyActor extends Actor {
   val c = OutQueue(UInt(width = 5))
   val d = InQueue(UInt(width = 5))
   val e = InQueue(UInt(width = 5))
+  val f = InQueue(UInt(width = 1))
 
   val s = State(init = UInt(0, 7))
   val arr = StateArray.fill(2){ State(init = UInt(0, 8)) }
@@ -51,6 +52,10 @@ class MyActor extends Actor {
       arr(1).value
     }
   }
+
+  action(f, c) {
+    i => arr.read(i)
+  }
 }
 
 class MyActorSetup extends Module {
@@ -60,6 +65,7 @@ class MyActorSetup extends Module {
     val c = Decoupled(UInt(width = 5))
     val d = Decoupled(UInt(width = 5)).flip
     val e = Decoupled(UInt(width = 5)).flip
+    val f = Decoupled(UInt(width = 1)).flip
   }
 
   val actor = (new MyActor).toMod
@@ -78,6 +84,9 @@ class MyActorSetup extends Module {
 
   val equeue = Queue(io.e, 1)
   equeue <> actor.portMap("e").asInstanceOf[DecoupledIO[UInt]]
+
+  val fqueue = Queue(io.f, 1)
+  fqueue <> actor.portMap("f").asInstanceOf[DecoupledIO[UInt]]
 }
 
 class MyActorTest(c: MyActorSetup) extends Tester(c) {
@@ -145,6 +154,17 @@ class MyActorTest(c: MyActorSetup) extends Tester(c) {
   step(1)
   poke(c.io.c.ready, 0)
 
+  poke(c.io.f.valid, 1)
+  poke(c.io.f.bits, 0)
+  step(1)
+  poke(c.io.f.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 8)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
   poke(c.io.d.valid, 1)
   poke(c.io.e.valid, 1)
   poke(c.io.d.bits, 1)
@@ -155,6 +175,17 @@ class MyActorTest(c: MyActorSetup) extends Tester(c) {
   step(1)
   expect(c.io.c.valid, 1)
   expect(c.io.c.bits, 0)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
+  poke(c.io.f.valid, 1)
+  poke(c.io.f.bits, 1)
+  step(1)
+  poke(c.io.f.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 8)
   poke(c.io.c.ready, 1)
   step(1)
   poke(c.io.c.ready, 0)
