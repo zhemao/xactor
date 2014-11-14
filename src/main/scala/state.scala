@@ -41,3 +41,55 @@ class State[T <: Data](val typ: T, val init: T) {
     this.reg = reg
   }
 }
+
+object StateArray {
+  def apply[T <: Data](elts: Iterable[State[T]]): StateArray[T] = {
+    new StateArray(elts.toArray)
+  }
+
+  def apply[T <: Data](elt0: State[T], elts: State[T]*): StateArray[T] = {
+    apply(elt0 +: elts.toSeq)
+  }
+
+  def fill[T <: Data](n: Int)(gen: => State[T]): StateArray[T] = {
+    tabulate(n){ i => gen }
+  }
+
+  def tabulate[T <: Data](n: Int)(gen: Int => State[T]): StateArray[T] = {
+    apply((0 until n).map(gen))
+  }
+}
+
+class StateArray[T <: Data](val elts: Array[State[T]]) {
+  private var actor: Actor = null
+  var name = ""
+  var vec: Vec[T] = null
+
+  def setActor(actor: Actor) {
+    this.actor = actor
+    for ((state, i) <- elts.zipWithIndex) {
+      state.setActor(actor)
+    }
+  }
+
+  def setName(name: String) {
+    this.name = name
+    for ((state, i) <- elts.zipWithIndex) {
+      state.setName(name + "_" + i)
+    }
+  }
+
+  def setVec(vec: Vec[T]) {
+    this.vec = vec
+  }
+
+  def size = elts.size
+
+  def apply(i: Int): State[T] = {
+    elts(i)
+  }
+
+  def read(x: UInt): T = {
+    vec(x)
+  }
+}

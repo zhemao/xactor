@@ -22,6 +22,7 @@ class Actor {
   var lastguard = Bool(true)
   var lastupdates = new ArrayBuffer[(String,Data)]
   val states = new ArrayBuffer[State[Data]]
+  val arrays = new ArrayBuffer[StateArray[Data]]
   private val inputDepList = new HashMap[String,ArrayBuffer[Int]]
   private val outputDepList = new HashMap[String,ArrayBuffer[Int]]
   private val stateDepList = new HashMap[String,ArrayBuffer[Int]]
@@ -106,6 +107,12 @@ class Actor {
               dstate.setName(name)
               states += dstate
             }
+            case array: StateArray[_] => {
+              val darray = array.asInstanceOf[StateArray[Data]]
+              darray.setName(name)
+              darray.setActor(this)
+              arrays += darray
+            }
             case any => ()
           }
         }
@@ -158,6 +165,23 @@ class Actor {
         stateregs += Tuple2(state.name, reg)
         guardMap(state.name) = new ArrayBuffer[(Bool,Bits)]
         stateDepList(state.name) = new ArrayBuffer[Int]
+      }
+
+      val statevecs = new ArrayBuffer[(String,Vec[Data])]
+      for (arr <- arrays) {
+        val vec = Vec.tabulate(arr.size)(i => {
+          val state = arr.elts(i)
+          val reg = Reg(state.typ, init=state.init)
+          reg.setName(state.name)
+          state.setReg(reg)
+          stateregs += Tuple2(state.name, reg)
+          guardMap(state.name) = new ArrayBuffer[(Bool,Bits)]
+          stateDepList(state.name) = new ArrayBuffer[Int]
+          reg
+        })
+        vec.setName(arr.name)
+        arr.setVec(vec)
+        statevecs += Tuple2(arr.name, vec)
       }
 
       val curSchedule = UInt(width = actions.length)

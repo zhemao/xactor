@@ -11,6 +11,7 @@ class MyActor extends Actor {
   val e = InQueue(UInt(width = 5))
 
   val s = State(init = UInt(0, 7))
+  val arr = StateArray.fill(2){ State(init = UInt(0, 8)) }
 
   action (a, c) {
     x => guard (x > UInt(10)) {
@@ -29,6 +30,7 @@ class MyActor extends Actor {
       s := s.value + x
     }
   }
+
   action (b, c) {
     x => guard (s.value >= UInt(20)) {
       s := x
@@ -39,6 +41,14 @@ class MyActor extends Actor {
   action(List(d, e), c) {
     case (x :: y :: Nil) => guard (x < y) {
       x
+    }
+  }
+
+  action(List(d, e), c) {
+    case (x :: y :: Nil) => guard (y <= x) {
+      arr(0) := x + y
+      arr(1) := arr(0).value
+      arr(1).value
     }
   }
 }
@@ -117,6 +127,51 @@ class MyActorTest(c: MyActorSetup) extends Tester(c) {
   step(1)
   expect(c.io.c.valid, 1)
   expect(c.io.c.bits, 4)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
+  poke(c.io.d.valid, 1)
+  poke(c.io.e.valid, 1)
+  poke(c.io.d.bits, 4)
+  poke(c.io.e.bits, 4)
+  step(1)
+  poke(c.io.d.valid, 0)
+  poke(c.io.e.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 0)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
+  poke(c.io.d.valid, 1)
+  poke(c.io.e.valid, 1)
+  poke(c.io.d.bits, 1)
+  poke(c.io.e.bits, 0)
+  step(1)
+  poke(c.io.d.valid, 0)
+  poke(c.io.e.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 0)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
+
+  poke(c.io.d.valid, 1)
+  poke(c.io.e.valid, 1)
+  poke(c.io.d.bits, 1)
+  poke(c.io.e.bits, 0)
+  step(1)
+  poke(c.io.d.valid, 0)
+  poke(c.io.e.valid, 0)
+  step(1)
+  expect(c.io.c.valid, 1)
+  expect(c.io.c.bits, 8)
+  poke(c.io.c.ready, 1)
+  step(1)
+  poke(c.io.c.ready, 0)
 }
 
 object MyActorMain {
