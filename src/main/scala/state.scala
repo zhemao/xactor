@@ -92,4 +92,13 @@ class StateArray[T <: Data](val elts: Array[State[T]]) {
   def read(x: UInt): T = {
     vec(x)
   }
+
+  def write(idx: UInt, data: T) {
+    if (actor == null)
+      throw new Exception("actor has not been set yet")
+    actor.addWrite(name, idx, data)
+  }
+
+  def idx_name = name + "__i"
+  def update_name = name + "__u"
 }

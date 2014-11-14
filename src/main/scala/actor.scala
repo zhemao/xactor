@@ -21,6 +21,7 @@ class Actor {
   val actions = new ArrayBuffer[Action[_ <: Data, _ <: Data]]
   var lastguard = Bool(true)
   var lastupdates = new ArrayBuffer[(String,Data)]
+  var lastwrites = new ArrayBuffer[(String,UInt,Data)]
   val states = new ArrayBuffer[State[Data]]
   val arrays = new ArrayBuffer[StateArray[Data]]
   private val inputDepList = new HashMap[String,ArrayBuffer[Int]]
@@ -30,6 +31,10 @@ class Actor {
 
   def addUpdate(name: String, data: Data) {
     lastupdates += Tuple2(name, data)
+  }
+
+  def addWrite(name: String, idx: UInt, data: Data) {
+    lastwrites += Tuple3(name, idx, data)
   }
 
   def action[T <: Data, U <: Data](
@@ -133,6 +138,7 @@ class Actor {
     inspectStateElements
 
     val guardMap = new HashMap[String,ArrayBuffer[(Bool,Bits)]]
+
     val mod = Module(new ActorModule {
       for ((name, typ) <- inputPorts) {
         val port = new DecoupledIO(typ.clone).flip
@@ -167,7 +173,7 @@ class Actor {
         stateDepList(state.name) = new ArrayBuffer[Int]
       }
 
-      val statevecs = new ArrayBuffer[(String,Vec[Data])]
+      val arrmap = new HashMap[String,StateArray[Data]]
       for (arr <- arrays) {
         val vec = Vec.tabulate(arr.size)(i => {
           val state = arr.elts(i)
@@ -181,7 +187,9 @@ class Actor {
         })
         vec.setName(arr.name)
         arr.setVec(vec)
-        statevecs += Tuple2(arr.name, vec)
+        arrmap(arr.name) = arr
+        guardMap(arr.idx_name) = new ArrayBuffer[(Bool,Bits)]
+        guardMap(arr.update_name) = new ArrayBuffer[(Bool,Bits)]
       }
 
       val curSchedule = UInt(width = actions.length)
@@ -227,11 +235,22 @@ class Actor {
           stateDepList(name) += i
           guardMap(name) += Tuple2(curSchedule(i), data.toBits)
         }
+        for ((aname, idx, data) <- lastwrites) {
+          println(aname)
+          val arr = arrmap(aname)
+          for (j <- 0 until arr.size) {
+            val sname = arr(j).name
+            stateDepList(sname) += i
+          }
+          guardMap(aname + "__i") += Tuple2(curSchedule(i), idx)
+          guardMap(aname + "__u") += Tuple2(curSchedule(i), data.toBits)
+        }
         for (inq <- dact.inqueues) {
           guardMap(inq.name) += Tuple2(curSchedule(i), null)
         }
         lastguard = Bool(true)
         lastupdates = new ArrayBuffer[(String, Data)]
+        lastwrites = new ArrayBuffer[(String,UInt,Data)]
       }
 
       val scheduleROM = Vec(generateSchedule)
@@ -253,6 +272,15 @@ class Actor {
         val regEn = guardMap(name).unzip._1.reduce(_ || _)
         when (regEn) {
           reg := regMux
+        }
+      }
+
+      for (arr <- arrays) {
+        val addrMux = PriorityMux(guardMap(arr.idx_name))
+        val nextMux = PriorityMux(guardMap(arr.update_name))
+        val writeEn = guardMap(arr.idx_name).unzip._1.reduce(_ || _)
+        when (writeEn) {
+          arr.vec(addrMux.toUInt) := nextMux
         }
       }
     })
