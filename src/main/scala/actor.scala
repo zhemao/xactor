@@ -12,6 +12,18 @@ case class Action[T <: Data, U <: Data](
 abstract class ActorModule extends Module {
   val io = new Bundle
   val portMap = new HashMap[String,DecoupledIO[Data]]
+
+  def connect[T <: Data](
+      name: String, outerPort: DecoupledIO[T], qdepth: Int = 1) {
+    val innerPort = portMap(name).asInstanceOf[DecoupledIO[T]]
+    if (innerPort.valid.dir == INPUT) {
+      val queue = Queue(outerPort, qdepth)
+      innerPort <> queue
+    } else {
+      val queue = Queue(innerPort, qdepth)
+      outerPort <> queue
+    }
+  }
 }
 
 class Actor {

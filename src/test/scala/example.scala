@@ -77,26 +77,13 @@ class MyActorSetup extends Module {
 
   val actor = (new MyActor).toMod
 
-  val aqueue = Queue(io.a, 1)
-  aqueue <> actor.portMap("a").asInstanceOf[DecoupledIO[UInt]]
-
-  val bqueue = Queue(io.b, 1)
-  bqueue <> actor.portMap("b").asInstanceOf[DecoupledIO[UInt]]
-
-  val cqueue = Queue(actor.portMap("c").asInstanceOf[DecoupledIO[UInt]], 1)
-  cqueue <> io.c
-
-  val dqueue = Queue(io.d, 1)
-  dqueue <> actor.portMap("d").asInstanceOf[DecoupledIO[UInt]]
-
-  val equeue = Queue(io.e, 1)
-  equeue <> actor.portMap("e").asInstanceOf[DecoupledIO[UInt]]
-
-  val fqueue = Queue(io.f, 1)
-  fqueue <> actor.portMap("f").asInstanceOf[DecoupledIO[UInt]]
-
-  val gqueue = Queue(io.g, 1)
-  gqueue <> actor.portMap("g").asInstanceOf[DecoupledIO[UInt]]
+  actor.connect("a", io.a)
+  actor.connect("b", io.b)
+  actor.connect("c", io.c)
+  actor.connect("d", io.d)
+  actor.connect("e", io.e)
+  actor.connect("f", io.f)
+  actor.connect("g", io.g)
 }
 
 class MyActorTest(c: MyActorSetup) extends Tester(c) {
