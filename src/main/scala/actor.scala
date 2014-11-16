@@ -5,9 +5,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
 case class Action[T <: Data, U <: Data](
-  val func: List[T] => U,
+  val func: List[T] => List[U],
   val inqueues: List[InQueue[T]],
-  val outqueue: OutQueue[U])
+  val outqueues: List[OutQueue[U]])
 
 abstract class ActorModule extends Module {
   val io = new Bundle
@@ -51,45 +51,50 @@ class Actor {
 
   def action[T <: Data, U <: Data](
     inqueue: InQueue[T], outqueue: OutQueue[U]) (func: T => U) {
-    val wrapfunc = (x: List[T]) => func(x.head)
-    actions += Action(wrapfunc, List(inqueue), outqueue)
+    val wrapfunc = (x: List[T]) => List(func(x.head))
+    actions += Action(wrapfunc, List(inqueue), List(outqueue))
   }
 
   def action[T <: Data](inqueue: InQueue[T]) (func: T => Unit) {
     val wrapfunc = (x: List[T]) => {
       func(x.head)
-      val typedNull: Data = null
-      typedNull
+      val typedNil: List[Data] = Nil
+      typedNil
     }
-    actions += Action(wrapfunc, List(inqueue), null)
+    actions += Action(wrapfunc, List(inqueue), Nil)
   }
 
   def action[T <: Data, U <: Data](
-    inqueues: List[InQueue[T]], outqueue: OutQueue[U]) (func: List[T] => U) {
-    actions += Action(func, inqueues, outqueue)
+    inqueues: List[InQueue[T]], outqueues: List[OutQueue[U]]) (func: List[T] => List[U]) {
+    actions += Action(func, inqueues, outqueues)
   }
 
   def action[T <: Data](inqueues: List[InQueue[T]]) (func: List[T] => Unit) {
     val wrapfunc = (x: List[T]) => {
       func(x)
-      val typedNull: Data = null
-      typedNull
+      val typedNil: List[Data] = Nil
+      typedNil
     }
-    actions += Action(wrapfunc, inqueues, null)
+    actions += Action(wrapfunc, inqueues, Nil)
   }
 
   def action[T <: Data](outqueue: OutQueue[T]) (func: => T) {
-    val wrapfunc = (x: List[_]) => func
-    actions += Action(wrapfunc, Nil, outqueue)
+    val wrapfunc = (x: List[_]) => List(func)
+    actions += Action(wrapfunc, Nil, List(outqueue))
   }
 
   def action() (func: => Unit) {
     val wrapfunc = (x: List[_]) => {
       func
-      val typedNull: Data = null
-      typedNull
+      val typedNil: List[Data] = Nil
+      typedNil
     }
-    actions += Action(wrapfunc, Nil, null)
+    actions += Action(wrapfunc, Nil, Nil)
+  }
+
+  def lguard[T](cond: Bool) (func: => List[T]): List[T] = {
+    lastguard = cond
+    func
   }
 
   def guard[T](cond: Bool) (func: => T): T = {
@@ -220,7 +225,7 @@ class Actor {
           inq => portMap(inq.name)
             .asInstanceOf[DecoupledIO[Data]].bits
         }
-        val res = dact.func(inputs)
+        val results = dact.func(inputs)
 
         var fullguard = lastguard
         for (inq <- dact.inqueues) {
@@ -229,19 +234,19 @@ class Actor {
           fullguard = fullguard && ind.valid
         }
 
-        if(dact.outqueue != null) {
-          val outd = portMap(dact.outqueue.name)
+        for (outq <- dact.outqueues) {
+          val outd = portMap(outq.name)
             .asInstanceOf[DecoupledIO[Data]]
           fullguard = fullguard && outd.ready
           //Register current actors output dependency 
-          outputDepList(dact.outqueue.name) += i
+          outputDepList(outq.name) += i
         }
         //Create the lookup address with evaluated guards
         schedulerAddr(i) := fullguard
 
         //Zip data, with scheduled predicate to drive priority muxes
-        if (dact.outqueue != null) {
-          guardMap(dact.outqueue.name) += Tuple2(curSchedule(i), res.toBits)
+        for ((res, outq) <- results zip dact.outqueues) {
+          guardMap(outq.name) += Tuple2(curSchedule(i), res.toBits)
         }
         for ((name, data) <- lastupdates) {
           stateDepList(name) += i

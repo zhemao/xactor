@@ -40,17 +40,17 @@ class MyActor extends Actor {
     }
   }
 
-  action(List(d, e), c) {
-    case (x :: y :: Nil) => guard (x < y) {
-      x
+  action(List(d, e), List(c)) {
+    case (x :: y :: Nil) => lguard (x < y) {
+      List(x)
     }
   }
 
-  action(List(d, e), c) {
-    case (x :: y :: Nil) => guard (y <= x) {
+  action(List(d, e), List(c)) {
+    case (x :: y :: Nil) => lguard (y <= x) {
       arr(0) := x + y
       arr(1) := arr(0).value
-      arr(1).value
+      List(arr(1).value)
     }
   }
 

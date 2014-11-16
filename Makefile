@@ -22,6 +22,9 @@ test-module: $(example_src) $(core_gen_dir)/timestamp
 test-gcd: $(example_src) $(core_gen_dir)/timestamp
 	sbt "test:run-main Xactor.GcdMain $(TEST_FLAGS) --targetDir $(example_gen_dir)"
 
+test-fork: $(example_src) $(core_gen_dir)/timestamp
+	sbt "test:run-main Xactor.ForkMain $(TEST_FLAGS) --targetDir $(example_gen_dir)"
+
 $(core_gen_dir)/timestamp: $(core_src)
 	sbt "compile"
 	date > "$(core_gen_dir)/timestamp"
