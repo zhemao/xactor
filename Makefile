@@ -25,6 +25,9 @@ test-gcd: $(example_src) $(core_gen_dir)/timestamp
 test-fork: $(example_src) $(core_gen_dir)/timestamp
 	sbt "test:run-main Xactor.ForkMain $(TEST_FLAGS) --targetDir $(example_gen_dir)"
 
+test-pingpong: $(example_src) $(core_gen_dir)/timestamp
+	sbt "test:run-main Xactor.PingPongMain $(TEST_FLAGS) --targetDir $(example_gen_dir)"
+
 $(core_gen_dir)/timestamp: $(core_src)
 	sbt "compile"
 	date > "$(core_gen_dir)/timestamp"

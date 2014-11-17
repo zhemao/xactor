@@ -24,6 +24,16 @@ abstract class ActorModule extends Module {
       outerPort <> queue
     }
   }
+
+  def connect(other: ActorModule, thisname: String, othername: String, qdepth: Int = 1) {
+    val thisPort = portMap(thisname)
+    val otherPort = other.portMap(othername)
+
+    if (thisPort.valid.dir == INPUT)
+      thisPort <> Queue(otherPort, qdepth)
+    else
+      otherPort <> Queue(thisPort, qdepth)
+  }
 }
 
 class Actor {
