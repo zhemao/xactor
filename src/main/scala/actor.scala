@@ -4,6 +4,25 @@ import Chisel._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.HashMap
 
+class Config[+T <: Data](val typ: T) {
+  private var port: Data = null
+  var name: String = ""
+
+  def value = port.asInstanceOf[T]
+
+  def setPort(port: Data) {
+    this.port = port
+  }
+
+  def setName(name: String) {
+    this.name = name
+  }
+}
+
+object Config {
+  def apply[T <: Data](typ: T): Config[T] = new Config(typ)
+}
+
 case class Action[T <: Data, U <: Data](
   val func: List[T] => List[U],
   val inqueues: List[InQueue[T]],
@@ -12,6 +31,7 @@ case class Action[T <: Data, U <: Data](
 abstract class ActorModule extends Module {
   val io = new Bundle
   val portMap = new HashMap[String,DecoupledIO[Data]]
+  val configMap = new HashMap[String,Data]
 
   def connect[T <: Data](
       name: String, outerPort: DecoupledIO[T], qdepth: Int = 1) {
@@ -34,6 +54,10 @@ abstract class ActorModule extends Module {
     else
       otherPort <> Queue(thisPort, qdepth)
   }
+
+  def config[T <: Data](cname: String, data: T) {
+    this.configMap(cname).asInstanceOf[T] := data
+  }
 }
 
 class Actor {
@@ -45,6 +69,7 @@ class Actor {
   var lastupdates = new ArrayBuffer[(String,Data)]
   var lastwrites = new ArrayBuffer[(String,UInt,Data)]
   val states = new ArrayBuffer[State[Data]]
+  val configs = new ArrayBuffer[Config[Data]]
   val arrays = new ArrayBuffer[StateArray[Data]]
   private val inputDepList = new HashMap[String,ArrayBuffer[Int]]
   private val outputDepList = new HashMap[String,ArrayBuffer[Int]]
@@ -133,6 +158,10 @@ class Actor {
               queue.setName(name)
               outputPorts += Tuple2(name, queue.typ)
             }
+            case config: Config[_] => {
+              config.setName(name)
+              configs += config
+            }
             case state: State[_] => {
               val dstate = state.asInstanceOf[State[Data]]
               dstate.setActor(this)
@@ -188,6 +217,14 @@ class Actor {
         portMap(name) = port
         guardMap(name) = new ArrayBuffer[(Bool,Bits)]
         outputDepList(name) = new ArrayBuffer[Int]
+      }
+
+      for (config <- configs) {
+        val port = config.typ.clone.asInput()
+        port.setName("io_" + config.name)
+        config.setPort(port)
+        io += port
+        configMap(config.name) = port
       }
 
       val stateregs = new ArrayBuffer[(String,Data)]

@@ -12,18 +12,20 @@ class MyActor extends Actor {
   val f = InQueue(UInt(width = 1))
   val g = InQueue(UInt(width = 8))
 
+  val amin = Config(UInt(width = 5))
+
   val s = State(init = UInt(0, 7))
   val arr = StateArray.fill(2){ State(init = UInt(0, 8)) }
 
   action (a, c) {
-    x => guard (x > UInt(10)) {
+    x => guard (x > amin.value) {
       x
     }
   }
 
   action (a, c) {
-    x => guard (x <= UInt(10)) {
-      x + UInt(10)
+    x => guard (x <= amin.value) {
+      x + amin.value
     }
   }
 
@@ -84,6 +86,8 @@ class MyActorSetup extends Module {
   actor.connect("e", io.e)
   actor.connect("f", io.f)
   actor.connect("g", io.g)
+
+  actor.config("amin", UInt(10))
 }
 
 class MyActorTest(c: MyActorSetup) extends Tester(c) {
